@@ -4,6 +4,7 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
+import android.location.Geocoder
 import android.net.wifi.WifiManager
 import android.os.Bundle
 import android.telephony.CellInfoLte
@@ -28,11 +29,11 @@ import org.json.JSONObject
 import java.io.FileNotFoundException
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.Locale
 
 
 val TAG: String by lazy { MainActivity::class.simpleName ?: "Unknown" }
 const val API_KEY = GOOGLE_API_KEY
-//const val API_KEY = ""
 
 class MainActivity : ComponentActivity() {
 
@@ -50,6 +51,7 @@ class MainActivity : ComponentActivity() {
 fun GeolocationScreen() {
     val context = LocalContext.current
     var resultText by remember { mutableStateOf("位置情報未取得") }
+    var addressText by remember { mutableStateOf("") }
 
     val requestPermissionLauncher =
         rememberLauncherForActivityResult(
@@ -92,9 +94,18 @@ fun GeolocationScreen() {
         ) {
             Text(resultText)
             Spacer(Modifier.height(16.dp))
+            Text(addressText)
+            Spacer(Modifier.height(16.dp))
             Button(onClick = {
                 resultText = "取得中..."
+                resultText = ""
                 getLastFusedLocation(context) { lat, lon, acc ->
+                    if (lat != null && lon != null) {
+                        addressText = getAddressFromLocation(context, lat, lon, acc?.toFloat())
+                    }
+                    if (lat != null && lon != null && acc != null) {
+                        addressText = getAddressFromLocation(context, lat, lon, acc.toFloat())
+                    }
                     resultText = if (lat != null && lon != null && acc != null) {
                         "FusedLocation 推定位置:\n 緯度=$lat,\n 経度=$lon,\n 制度=$acc"
                     } else {
@@ -106,7 +117,11 @@ fun GeolocationScreen() {
             }
             Button(onClick = {
                 resultText = "取得中..."
+                addressText = ""
                 getWifiLocation(context) { lat, lon, acc ->
+                    if (lat != null && lon != null) {
+                        addressText = getAddressFromLocation(context, lat, lon, acc?.toFloat())
+                    }
                     resultText = if (lat != null && lon != null && acc != null) {
                         "Wifi 推定位置:\n 緯度=$lat,\n 経度=$lon,\n 制度=$acc"
                     } else {
@@ -118,8 +133,12 @@ fun GeolocationScreen() {
             }
             Button(onClick = {
                 resultText = "取得中..."
+                addressText = ""
                 getCellLocation(context)
                 { lat, lon, acc ->
+                    if (lat != null && lon != null) {
+                        addressText = getAddressFromLocation(context, lat, lon, acc?.toFloat())
+                    }
                     resultText = if (lat != null && lon != null && acc != null) {
                         "Cell 推定位置:\n 緯度=$lat,\n 経度=$lon,\n 制度=$acc"
                     } else {
@@ -131,6 +150,22 @@ fun GeolocationScreen() {
                 Text("Cellから位置取得")
             }
         }
+    }
+}
+
+fun getAddressFromLocation(
+    context: Context,
+    lat: Double,
+    lon: Double,
+    acc: Float? = null
+): String {
+    return try {
+        val geocoder = Geocoder(context, Locale.JAPAN)
+        val addresses = geocoder.getFromLocation(lat, lon, 1)
+        addresses?.firstOrNull()?.getAddressLine(0) ?: "住所が取得できません"
+    } catch (e: Exception) {
+        Log.e(TAG, "住所取得失敗: ${e.message}", e)
+        "住所取得中にエラー"
     }
 }
 
